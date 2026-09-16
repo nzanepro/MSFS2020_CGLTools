@@ -1,23 +1,24 @@
-from bingtile import ListAllSubQKeys, CoordsToQkeyList
-from GMTiles import *
-from pyramidGen import createPyramids
-from cgl_generate import createCGLs
-from packageGen import makePackageFolder
-from misc import chunks
-from dataclasses import dataclass
 import os
-import click
-import cgl_generate as cglc
+from dataclasses import dataclass
 
+import click
+
+import cgl_generate as cglc
+from bingtile import CoordsToQkeyList, ListAllSubQKeys
+from cgl_generate import createCGLs
+from GMTiles import *
+from misc import chunks
+from packageGen import makePackageFolder
+from pyramidGen import createPyramids
 
 # Manifest data that will be written to the manifest.json in package folder.
 # Fill title, creator, package_version and release notes.
 manifest = {
     "dependencies": [],
     "content_type": "SCENERY",
-    "title": "Finland",
+    "title": "023011",
     "manufacturer": "",
-    "creator": "morko",
+    "creator": "trespassvr",
     "package_version": "0.2.1",
     "minimum_game_version": "1.11.6",
     "release_notes": {
@@ -52,15 +53,19 @@ manifest = {
 # TargetName: Package name for the project.
 class Options():
     CGLLevel: int = 6
-    MaxLevel: int = 12
+    MaxLevel: int = 6
     padding: int = 1
-    DEMInputFiles = [r'C:\test\und_egm2008_wgs84.bil', r'C:\karttadata\ALOS_egm2008\alos_egm2008.gmc',
-                     r'C:\karttadata\korkeusmalli_egm2008\hila10m\10m_egm2008.gmc']
-    GMExePath: str = r'C:\Program Files\GlobalMapper21.1_64bit\global_mapper.exe'
+    DEMInputFiles = [
+        # r'C:\test\und_egm2008_wgs84.bil',
+        # r'C:\karttadata\ALOS_egm2008\alos_egm2008.gmc',
+        # r'C:\karttadata\korkeusmalli_egm2008\hila10m\10m_egm2008.gmc',
+        'd:/shows/msfs/gitdown/MSFS2020_CGLTools_try3/source/try3.gmc'
+    ]
+    GMExePath: str = r'C:\Program Files\GlobalMapper21.0_64bit\global_mapper.exe'
     GMThreads: int = mp.cpu_count()
     ProcessingThreads: int = mp.cpu_count()
     Basepath: str = os.path.abspath('./_temp/')
-    TargetName: str = "morko-dem-finland-lvl12"
+    TargetName: str = "trespassvr-dem-023011-lvl6"
 
 
 @dataclass
@@ -71,29 +76,31 @@ class LongLat():
 
 # UpperLeft and LowerRight coordinates for target area
 # If area covers multiple cgls, multiple cgls will be generated.
-longlatUL = LongLat(18.60,70.75)
+longlatUL = LongLat(18.60, 70.75)
 longlatLR = LongLat(31.90, 59.20)
 
-
-
 if __name__ == '__main__':
-    TopLevelQKeys = CoordsToQkeyList(longlatUL, longlatLR, Options)
+    # TopLevelQKeys = CoordsToQkeyList(longlatUL, longlatLR, Options)
+    TopLevelQKeys = [['023011', 0]]
     createCoveragePolyShapefile(TopLevelQKeys, Options.Basepath)
     createGMVisualizationScript(Options)
     diskspaceneeded = calculateMaxDiskUsageMB(len(TopLevelQKeys), Options)
-    print("Maximum space needed will be around " +
-          str(int(diskspaceneeded)) + " MB")
+    print("Maximum space needed will be around " + str(int(diskspaceneeded)) +
+          " MB")
     print("If padding tiles are not \"full\", it will be less")
     print("Showing quadkeys over source data in global mapper")
-    print("When padding enabled, outermost tiles don't have to be completely covered")
+    print(
+        "When padding enabled, outermost tiles don't have to be completely covered"
+    )
     print("1/3 of width/height should be enough")
     print("Check if coverage is OK")
-    visualize(Options.GMExePath, Options.Basepath)
+    # visualize(Options.GMExePath, Options.Basepath)
     if click.confirm('Everything OK? Continue?', default=True):
-        allSubQKeys = ListAllSubQKeys(
-            TopLevelQKeys, Options.MaxLevel, Options.Basepath)
+        allSubQKeys = ListAllSubQKeys(TopLevelQKeys, Options.MaxLevel,
+                                      Options.Basepath)
         totalSubCount = len(allSubQKeys)
-        subsPerChunk = int(totalSubCount/(Options.GMThreads*2))
+        subsPerChunk = int(totalSubCount / (Options.GMThreads * 2))
+        subsPerChunk = 1  # forces a task per chunk
         subQKeyChunks = chunks(allSubQKeys, subsPerChunk)
         for index, chunk in enumerate(subQKeyChunks):
             CreateGlobalMapperScript(index, chunk, Options)

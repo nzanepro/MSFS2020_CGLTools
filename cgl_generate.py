@@ -1,11 +1,10 @@
-import multiprocessing as mp
-import os
+import binascii
 import glob
-import struct
 import lzma
 import math
-import binascii
-
+import multiprocessing as mp
+import os
+import struct
 """ CGL building """
 
 
@@ -25,7 +24,7 @@ def createLayout(tiles):
     prevval = 0
     pervlevel = 0
     for tile in tiles:
-        subkey = tile[str(tile).index("dem")+3+6:str(tile).index(".bil")]
+        subkey = tile[str(tile).index("dem") + 3 + 6:str(tile).index(".bil")]
         subval = 0
         level = len(subkey)
         if subkey == '':
@@ -34,10 +33,10 @@ def createLayout(tiles):
             subval = int(subkey, 4)
         delta = 0
         if level == pervlevel:
-            delta = subval-prevval
-            prevval = prevval+delta
+            delta = subval - prevval
+            prevval = prevval + delta
         else:
-            delta = levelchangevalue-prevval+subval
+            delta = levelchangevalue - prevval + subval
             prevval = 0
         pervlevel = level
         valbts = delta.to_bytes(2, "little")
@@ -61,19 +60,27 @@ def createBlob(tiles):
     uncompressedsizes = []
     prop = 93
     pb = math.floor(prop / (9 * 5))
-    prop = prop-(pb * 9 * 5)
+    prop = prop - (pb * 9 * 5)
     lp = math.floor(prop / 9)
     lc = math.floor(prop - lp * 9)
-    my_filters = [{"id": lzma.FILTER_LZMA1,
-                   "preset": lzma.PRESET_DEFAULT, "lc": lc, "lp": lp, "pb": pb, "dict_size": 65536}, ]
+    my_filters = [
+        {
+            "id": lzma.FILTER_LZMA1,
+            "preset": lzma.PRESET_DEFAULT,
+            "lc": lc,
+            "lp": lp,
+            "pb": pb,
+            "dict_size": 65536
+        },
+    ]
     for tile in tiles:
-        qkey = tile[str(tile).index("_")+1:str(tile).index(".bil")]
+        qkey = tile[str(tile).index("_") + 1:str(tile).index(".bil")]
         infile = open(tile, 'rb')
         inarr = infile.read()
         infile.close()
         uncompressedsizes.append(len(inarr))
-        compressed = lzma.compress(
-            inarr, lzma.FORMAT_RAW, -1, None, my_filters)
+        compressed = lzma.compress(inarr, lzma.FORMAT_RAW, -1, None,
+                                   my_filters)
         print(str(counter))
         counter += 1
         compressedsizes.append(len(compressed))
@@ -93,19 +100,27 @@ def compressChunk(chunkid, chunk):
     uncompressedsizes = []
     prop = 93
     pb = math.floor(prop / (9 * 5))
-    prop = prop-(pb * 9 * 5)
+    prop = prop - (pb * 9 * 5)
     lp = math.floor(prop / 9)
     lc = math.floor(prop - lp * 9)
-    my_filters = [{"id": lzma.FILTER_LZMA1,
-                   "preset": lzma.PRESET_DEFAULT, "lc": lc, "lp": lp, "pb": pb, "dict_size": 65536}, ]
+    my_filters = [
+        {
+            "id": lzma.FILTER_LZMA1,
+            "preset": lzma.PRESET_DEFAULT,
+            "lc": lc,
+            "lp": lp,
+            "pb": pb,
+            "dict_size": 65536
+        },
+    ]
     for tile in chunk:
-        qkey = tile[str(tile).index("_")+1:str(tile).index(".bil")]
+        qkey = tile[str(tile).index("_") + 1:str(tile).index(".bil")]
         infile = open(tile, 'rb')
         inarr = infile.read()
         infile.close()
         uncompressedsizes.append(len(inarr))
-        compressed = lzma.compress(
-            inarr, lzma.FORMAT_RAW, -1, None, my_filters)
+        compressed = lzma.compress(inarr, lzma.FORMAT_RAW, -1, None,
+                                   my_filters)
         compressedsizes.append(len(compressed))
         blob += bytearray(compressed)
     return [chunkid, (blob, compressedsizes, uncompressedsizes)]
@@ -120,7 +135,7 @@ def collect_result(result):
     compressedreturns[result[0]] = result[1]
 
 
-def createBlobMT(tiles,threads):
+def createBlobMT(tiles, threads):
     """ Compressed all tiles to single binary blob.
     Args:
         tiles (list): List of tile names
@@ -128,18 +143,23 @@ def createBlobMT(tiles,threads):
         blob: Bytearray blob.
         compressedsizes: Sizes of compressed tiles in blob.
     """
+    global compressedreturns
     srctilechunks = chunks(tiles, 256)
     blob = bytearray()
     counter = 0
     compressedsizes = []
     uncompressedsizes = []
-    pool = mp.Pool(int(mp.cpu_count()))
+    # pool = mp.Pool(int(mp.cpu_count()))
     for idx, chunk in enumerate(srctilechunks):
-        pool.apply_async(compressChunk, args=(
-            idx, chunk), callback=collect_result)
-    pool.close()
-    # postpones the execution of next line of code until all processes in the queue are done.
-    pool.join()
+        print(idx)
+        results = compressChunk(idx, chunk)
+        compressedreturns[results[0]] = results[1]
+    #     pool.apply_async(compressChunk,
+    #                      args=(idx, chunk),
+    #                      callback=collect_result)
+    # pool.close()
+    # # postpones the execution of next line of code until all processes in the queue are done.
+    # pool.join()
     itr = 0
     while itr < len(compressedreturns):
         blob += compressedreturns[itr][0]
@@ -153,35 +173,35 @@ def deltaSizes(sizes):
     deltacompressedsizes = bytes()
     lastVal = 0
     for idx, size in enumerate(sizes):
-        delta = size-lastVal
+        delta = size - lastVal
         # print("Prev: " + f'{previoussize:08}')
         # print("Curr: " + f'{size:08}')
         # print("Delta: " + f'{delta:08}')
         lastVal = size
-        if delta>=0x0000 and delta<=0x4000:
-            deltacompressedsizes+= delta.to_bytes(2, 'little')
-        elif delta < 0x0000 and delta>-0x4000:
-            Val=0x8000-((-1)*delta)
-            deltacompressedsizes+= Val.to_bytes(2, 'little')
-        elif delta <-0x0000:
+        if delta >= 0x0000 and delta <= 0x4000:
+            deltacompressedsizes += delta.to_bytes(2, 'little')
+        elif delta < 0x0000 and delta > -0x4000:
+            Val = 0x8000 - ((-1) * delta)
+            deltacompressedsizes += Val.to_bytes(2, 'little')
+        elif delta < -0x0000:
             firstword = 0x10000
-            while delta <0:
-                firstword-=1
-                delta+=0x10000
-            deltacompressedsizes+= firstword.to_bytes(2, 'little')
-            deltacompressedsizes+= delta.to_bytes(2, 'little')
-        elif delta >=0x10000:
-            firstword=0xFF00
-            while delta >0xFFFF:
-                delta-=0x10000
-                firstword+=1
-            deltacompressedsizes+= firstword.to_bytes(2, 'little')
-            deltacompressedsizes+= delta.to_bytes(2, 'little')
+            while delta < 0:
+                firstword -= 1
+                delta += 0x10000
+            deltacompressedsizes += firstword.to_bytes(2, 'little')
+            deltacompressedsizes += delta.to_bytes(2, 'little')
+        elif delta >= 0x10000:
+            firstword = 0xFF00
+            while delta > 0xFFFF:
+                delta -= 0x10000
+                firstword += 1
+            deltacompressedsizes += firstword.to_bytes(2, 'little')
+            deltacompressedsizes += delta.to_bytes(2, 'little')
         else:
-            firstword=0x8000
-            deltacompressedsizes+= firstword.to_bytes(2, 'little')
-            deltacompressedsizes+= delta.to_bytes(2, 'little')
-            
+            firstword = 0x8000
+            deltacompressedsizes += firstword.to_bytes(2, 'little')
+            deltacompressedsizes += delta.to_bytes(2, 'little')
+
         # if idx == 0:
         #     firstword = 32768
         #     while delta > 65520:
@@ -223,15 +243,16 @@ def deltasToUncompressed(compressedsizes, uncompressedsizes):
     deltastouncompressed = bytes()
     for csize, usize in zip(compressedsizes, uncompressedsizes):
         # TODO Uncompressed size is not constant, provide input list
-        delta = usize-csize
+        delta = usize - csize
         firstbyte = 32768
         while delta > 65535:
-            delta = delta-65536
+            delta = delta - 65536
             firstbyte += 1
         #print("fb:"+f'{firstbyte:06}'+"delta:"+f'{delta:06}')
         deltastouncompressed = deltastouncompressed + \
             firstbyte.to_bytes(2, 'little')
-        deltastouncompressed = deltastouncompressed+delta.to_bytes(2, 'little')
+        deltastouncompressed = deltastouncompressed + delta.to_bytes(
+            2, 'little')
     return deltastouncompressed
 
 
@@ -249,13 +270,21 @@ def createUncompressedHeader(btalayout, deltasizes, dtous):
 def createCompressedHeader(header):
     prop = 93
     pb = math.floor(prop / (9 * 5))
-    prop = prop-(pb * 9 * 5)
+    prop = prop - (pb * 9 * 5)
     lp = math.floor(prop / 9)
     lc = math.floor(prop - lp * 9)
-    my_filters = [{"id": lzma.FILTER_LZMA1,
-                   "preset": lzma.PRESET_DEFAULT, "lc": lc, "lp": lp, "pb": pb, "dict_size": 65536}, ]
-    compressed = lzma.compress(
-        header, lzma.FORMAT_RAW, -1, None, my_filters)[0:]
+    my_filters = [
+        {
+            "id": lzma.FILTER_LZMA1,
+            "preset": lzma.PRESET_DEFAULT,
+            "lc": lc,
+            "lp": lp,
+            "pb": pb,
+            "dict_size": 65536
+        },
+    ]
+    compressed = lzma.compress(header, lzma.FORMAT_RAW, -1, None,
+                               my_filters)[0:]
     headerc = bytearray()
     for byte in compressed:
         headerc.append(byte)
@@ -281,7 +310,7 @@ def compileCGL(headerc, blob, tilecount):
     return cgl
 
 
-def createCGL(srcpaths, dstpath,threads):
+def createCGL(srcpaths, dstpath, threads):
     tiles = srcpaths
     tiles = sorted(tiles, key=custom_key)
     tilecount = len(tiles)
@@ -289,7 +318,7 @@ def createCGL(srcpaths, dstpath,threads):
     if os.path.dirname(dstpath) != '':
         if not os.path.exists(os.path.dirname(dstpath)):
             os.makedirs(os.path.dirname(dstpath))
-    btablob, compressedsizes, uncompressedsizes = createBlobMT(tiles,threads)
+    btablob, compressedsizes, uncompressedsizes = createBlobMT(tiles, threads)
     deltasizes = deltaSizes(compressedsizes)
     dtous = deltasToUncompressed(compressedsizes, uncompressedsizes)
     uncompressedheader = createUncompressedHeader(btalayout, deltasizes, dtous)
@@ -299,23 +328,25 @@ def createCGL(srcpaths, dstpath,threads):
     outfile.write(cgl)
     outfile.close()
 
-def createCGLs(TopLevelQKeys, basepath,threads):
+
+def createCGLs(TopLevelQKeys, basepath, threads):
     totalcount = 0
     for qkey in TopLevelQKeys:
-        if qkey[1]==False:
+        if qkey[1] == False:
             totalcount += 1
-    print("Generating "+str(totalcount)+" CGLs")
+    print("Generating " + str(totalcount) + " CGLs")
     counter = 0
     for qkey in TopLevelQKeys:
         if qkey[1] == False:
-            files = glob.glob(basepath+"\\Tile/6/dem"+qkey[0]+"*.bil")
-            files += glob.glob(basepath+"\\Delta/7/dem"+qkey[0]+"*.bil")
-            files += glob.glob(basepath+"\\Delta/8/dem"+qkey[0]+"*.bil")
-            files += glob.glob(basepath+"\\Delta/9/dem"+qkey[0]+"*.bil")
-            files += glob.glob(basepath+"\\Delta/10/dem"+qkey[0]+"*.bil")
-            files += glob.glob(basepath+"\\Delta/11/dem"+qkey[0]+"*.bil")
-            files += glob.glob(basepath+"\\Delta/12/dem"+qkey[0]+"*.bil")
-            createCGL(files, basepath+"\\" +
-                           qkey[0][0:3]+"/dem"+qkey[0][3:6]+".cgl",threads)
+            files = glob.glob(basepath + "\\Tile/6/dem" + qkey[0] + "*.bil")
+            files += glob.glob(basepath + "\\Delta/7/dem" + qkey[0] + "*.bil")
+            files += glob.glob(basepath + "\\Delta/8/dem" + qkey[0] + "*.bil")
+            files += glob.glob(basepath + "\\Delta/9/dem" + qkey[0] + "*.bil")
+            files += glob.glob(basepath + "\\Delta/10/dem" + qkey[0] + "*.bil")
+            files += glob.glob(basepath + "\\Delta/11/dem" + qkey[0] + "*.bil")
+            files += glob.glob(basepath + "\\Delta/12/dem" + qkey[0] + "*.bil")
+            createCGL(
+                files, basepath + "\\" + qkey[0][0:3] + "/dem" + qkey[0][3:6] +
+                ".cgl", threads)
             counter += 1
-            print("Done "+str(counter)+' of '+str(totalcount))
+            print("Done " + str(counter) + ' of ' + str(totalcount))
