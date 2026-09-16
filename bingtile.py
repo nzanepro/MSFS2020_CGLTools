@@ -8,6 +8,8 @@
 
 import math
 import os
+from pathlib import Path
+
 EarthRadius = 6378137
 MinLatitude = -85.05112878
 MaxLatitude = 85.05112878
@@ -25,6 +27,7 @@ MaxLongitude = 180
 
 def Clip(n, minValue, maxValue):
     return min(max(n, minValue), maxValue)
+
 
 # <summary>
 # Determines the map width and height (in pixels) at a specified level
@@ -50,7 +53,9 @@ def MapSize(levelOfDetail):
 # <returns>The ground resolution, in meters per pixel.</returns>
 def GroundResolution(latitude, levelOfDetail):
     latitude = Clip(latitude, MinLatitude, MaxLatitude)
-    return math.cos(latitude * math.pi / 180) * 2 * math.pi * EarthRadius / MapSize(levelOfDetail)
+    return math.cos(latitude * math.pi /
+                    180) * 2 * math.pi * EarthRadius / MapSize(levelOfDetail)
+
 
 # <summary>
 # Determines the map scale at a specified latitude, level of detail,
@@ -66,6 +71,7 @@ def GroundResolution(latitude, levelOfDetail):
 
 def MapScale(latitude, levelOfDetail, screenDpi):
     return GroundResolution(latitude, levelOfDetail) * screenDpi / 0.0254
+
 
 # <summary>
 # Converts a point from latitude/longitude WGS-84 coordinates (in degrees)
@@ -90,6 +96,7 @@ def LatLongToPixelXY(latitude, longitude, levelOfDetail):
     pixelY = round(Clip(y * mapSize + 0.5, 0, mapSize - 1))
     return pixelX, pixelY
 
+
 # <summary>
 # Converts a pixel from pixel XY coordinates at a specified level of detail
 # into latitude/longitude WGS-84 coordinates (in degrees).
@@ -110,6 +117,7 @@ def PixelXYToLatLong(pixelX, pixelY, levelOfDetail):
     longitude = 360 * x
     return latitude, longitude
 
+
 # <summary>
 # Converts pixel XY coordinates into tile XY coordinates of the tile containing
 # the specified pixel.
@@ -124,6 +132,7 @@ def PixelXYToTileXY(pixelX, pixelY):
     tileX = math.floor(pixelX / 256)
     tileY = math.floor(pixelY / 256)
     return tileX, tileY
+
 
 # <summary>
 # Converts tile XY coordinates into pixel XY coordinates of the upper-left pixel
@@ -156,13 +165,14 @@ def TileXYToQuadKey(tileX, tileY, levelOfDetail):
         digit = 0
         mask = 1 << (i - 1)
         if (tileX & mask) != 0:
-            digit = digit+1
+            digit = digit + 1
         if (tileY & mask) != 0:
-            digit = digit+1
-            digit = digit+1
+            digit = digit + 1
+            digit = digit + 1
         quadKey += str(digit)
-        i = i-1
+        i = i - 1
     return quadKey
+
 
 # <summary>
 # Converts a QuadKey into tile XY coordinates.
@@ -181,26 +191,26 @@ def QuadKeyIncrement(qk):
     iter = 0
     while iter < level:
         qka[iter] = int(qka[iter])
-        iter = iter+1
-    index = level-1
+        iter = iter + 1
+    index = level - 1
     carry = 0
-    value = int(qka[index])+1
+    value = int(qka[index]) + 1
     while value > 3:
-        carry = carry+1
-        value = value-4
+        carry = carry + 1
+        value = value - 4
     qka[index] = value
     carrying = False
     if carry > 0:
         carrying = True
     while carrying:
         if carry > 0:
-            index = index-1
-            qka[index] = qka[index]+carry
+            index = index - 1
+            qka[index] = qka[index] + carry
             carry = 0
             value = qka[index]
             while value > 3:
-                carry = carry+1
-                value = value-4
+                carry = carry + 1
+                value = value - 4
             qka[index] = value
             if carry == 0:
                 carrying = False
@@ -225,13 +235,13 @@ def QuadKeyToTileXY(quadKey):
             tileY |= mask
         else:
             print("Invalid QuadKey digit sequence.")
-        i = i-1
+        i = i - 1
     return tileX, tileY, levelOfDetail
 
 
 def LatLongToTileXY(latLong, levelOfDetail):
-    pixelX, pixelY = LatLongToPixelXY(
-        latLong.latitude, latLong.longitude, levelOfDetail)
+    pixelX, pixelY = LatLongToPixelXY(latLong.latitude, latLong.longitude,
+                                      levelOfDetail)
     tileX, tileY = PixelXYToTileXY(pixelX, pixelY)
     return (tileX, tileY)
 
@@ -239,16 +249,17 @@ def LatLongToTileXY(latLong, levelOfDetail):
 def TileXYsToQkeys(tileXY_UL, tileXY_LR, options):
     padding = options.padding
     CGLLevel = options.CGLLevel
-    xmin = tileXY_UL[0]-padding
-    ymin = tileXY_UL[1]-padding
-    xmax = tileXY_LR[0]+padding
-    ymax = tileXY_LR[1]+padding
+    xmin = tileXY_UL[0] - padding
+    ymin = tileXY_UL[1] - padding
+    xmax = tileXY_LR[0] + padding
+    ymax = tileXY_LR[1] + padding
     x = xmin
     y = ymin
     qKeys = []
     while y <= ymax:
         while x <= xmax:
-            if y >= tileXY_UL[1] and y <= tileXY_LR[1] and x >= tileXY_UL[0] and x <= tileXY_LR[0]:
+            if y >= tileXY_UL[1] and y <= tileXY_LR[1] and x >= tileXY_UL[
+                    0] and x <= tileXY_LR[0]:
                 qKeys.append([TileXYToQuadKey(x, y, CGLLevel), 0])
             else:
                 qKeys.append([TileXYToQuadKey(x, y, CGLLevel), 1])
@@ -265,11 +276,12 @@ def CoordsToQkeyList(latLongUL, latLongLR, options):
     qKeys = TileXYsToQkeys(tileXY_UL, tileXY_LR, options)
     return qKeys
 
+
 def SubtileCount(baselevel, minlevel, MaxLevel):
     count = 0
     level = minlevel
     while level <= MaxLevel:
-        count += pow(4, level-baselevel)
+        count += pow(4, level - baselevel)
         level += 1
     return count
 
@@ -285,10 +297,10 @@ def ListSubQKeys(qKey, level):
     return subQKeys
 
 
-def ListAllSubQKeys(TopLevelQKeys, level, basepath):
+def ListAllSubQKeys(TopLevelQKeys, level, basepath: Path):
     AllSubQKeys = []
-    os.makedirs(os.path.dirname(
-        basepath+"/Tile/"+str(level)+"/"), exist_ok=True)
+    pth = basepath / "Tile" / str(level)
+    pth.mkdir(exist_ok=True, parents=True)
     for qKey in TopLevelQKeys:
         AllSubQKeys.extend(ListSubQKeys(qKey[0], level))
     return AllSubQKeys
@@ -298,8 +310,8 @@ def qKeyToBoundingLatLong(qKey):
     txy = QuadKeyToTileXY(qKey)
     pxy = TileXYToPixelXY(txy[0], txy[1])
     ul = PixelXYToLatLong(pxy[0], pxy[1], txy[2])
-    pxy = TileXYToPixelXY(txy[0]+1, txy[1]+1)
-    lr = PixelXYToLatLong(pxy[0]-0, pxy[1]-0, txy[2])
+    pxy = TileXYToPixelXY(txy[0] + 1, txy[1] + 1)
+    lr = PixelXYToLatLong(pxy[0] - 0, pxy[1] - 0, txy[2])
     west = ul[1]
     north = ul[0]
     east = lr[1]
@@ -308,6 +320,6 @@ def qKeyToBoundingLatLong(qKey):
 
 
 def PixelDimensions(east, west, north, south, pixels):
-    pw = (east-west)/pixels
-    ph = (north-south)/pixels
+    pw = (east - west) / pixels
+    ph = (north - south) / pixels
     return pw, ph
